@@ -1,272 +1,295 @@
-import React, { useState, useEffect, useRef } from 'react';
-import Chart from 'chart.js/auto';
-import { jsPDF } from 'jspdf';
-import 'jspdf-autotable';
-import './App.css';
-
-function App() {
-  const [shipments, setShipments] = useState([]);
-  const [form, setForm] = useState({
-    product: '',
-    quantity: '',
-    destination: '',
-    date: ''
-  });
-  const [filter, setFilter] = useState({ date: '', destination: '' });
-  const chartRef = useRef(null);
-  const chartInstance = useRef(null);
-
-  // localStorage'dan verileri yükle
-  useEffect(() => {
-    const savedShipments = JSON.parse(localStorage.getItem('shipments')) || [];
-    setShipments(savedShipments);
-  }, []);
-
-  // Verileri localStorage'a kaydet
-  useEffect(() => {
-    localStorage.setItem('shipments', JSON.stringify(shipments));
-  }, [shipments]);
-
-  // Form input değişikliklerini yönet
-  const handleChange = (e) => {
-    setForm({ ...form, [e.target.name]: e.target.value });
-  };
-
-  // Filtre input değişikliklerini yönet
-  const handleFilterChange = (e) => {
-    setFilter({ ...filter, [e.target.name]: e.target.value });
-  };
-
-  // Yeni sevkiyat ekle
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    if (form.product && form.quantity && form.destination && form.date) {
-      setShipments([...shipments, { ...form, id: Date.now(), quantity: parseInt(form.quantity) }]);
-      setForm({ product: '', quantity: '', destination: '', date: '' });
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Haftalık Sevkiyat Planlama</title>
+  <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.development.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.development.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/babel-standalone@7.22.9/babel.min.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+  <style>
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
     }
-  };
+    .fade-in { animation: fadeIn 0.5s ease-in; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+    const { useState, useEffect, useRef } = React;
+    const { jsPDF } = window.jspdf;
 
-  // Sevkiyat sil
-  const handleDelete = (id) => {
-    setShipments(shipments.filter((shipment) => shipment.id !== id));
-  };
-
-  // Filtrelenmiş sevkiyatlar
-  const filteredShipments = shipments.filter((shipment) => {
-    return (
-      (!filter.date || shipment.date === filter.date) &&
-      (!filter.destination || shipment.destination.toLowerCase().includes(filter.destination.toLowerCase()))
-    );
-  });
-
-  // Rapor verileri
-  const totalQuantity = filteredShipments.reduce((sum, shipment) => sum + shipment.quantity, 0);
-  const destinationCounts = filteredShipments.reduce((acc, shipment) => {
-    acc[shipment.destination] = (acc[shipment.destination] || 0) + shipment.quantity;
-    return acc;
-  }, {});
-
-  // Chart.js grafiği oluştur
-  useEffect(() => {
-    if (chartRef.current) {
-      if (chartInstance.current) {
-        chartInstance.current.destroy();
-      }
-      chartInstance.current = new Chart(chartRef.current, {
-        type: 'bar',
-        data: {
-          labels: Object.keys(destinationCounts),
-          datasets: [{
-            label: 'Sevkiyat Miktarı',
-            data: Object.values(destinationCounts),
-            backgroundColor: 'rgba(59, 130, 246, 0.5)',
-            borderColor: 'rgba(59, 130, 246, 1)',
-            borderWidth: 1
-          }]
-        },
-        options: {
-          scales: {
-            y: { beginAtZero: true }
-          }
-        }
+    function App() {
+      const [shipments, setShipments] = useState([]);
+      const [form, setForm] = useState({
+        product: '',
+        quantity: '',
+        destination: '',
+        date: ''
       });
-    }
-    return () => {
-      if (chartInstance.current) {
-        chartInstance.current.destroy();
-      }
-    };
-  }, [destinationCounts]);
+      const [filter, setFilter] = useState({ date: '', destination: '' });
+      const chartRef = useRef(null);
+      const chartInstance = useRef(null);
 
-  // PDF indirme
-  const downloadPDF = () => {
-    const doc = new jsPDF();
-    doc.setFontSize(16);
-    doc.text('Haftalık Sevkiyat Raporu', 20, 20);
-    doc.setFontSize(12);
-    doc.text(`Toplam Miktar: ${totalQuantity}`, 20, 30);
-    doc.text('Lokasyon Bazlı Dağılım:', 20, 40);
-    let y = 50;
-    Object.entries(destinationCounts).forEach(([dest, qty]) => {
-      doc.text(`${dest}: ${qty}`, 20, y);
-      y += 10;
-    });
-    doc.autoTable({
-      startY: y,
-      head: [['Ürün', 'Miktar', 'Hedef Lokasyon', 'Tarih']],
-      body: filteredShipments.map(s => [s.product, s.quantity, s.destination, s.date])
-    });
-    doc.save('sevkiyat_raporu.pdf');
-  };
+      // localStorage'dan verileri yükle
+      useEffect(() => {
+        const savedShipments = JSON.parse(localStorage.getItem('shipments')) || [];
+        setShipments(savedShipments);
+      }, []);
 
-  return (
-    <div className="container mx-auto p-4">
-      <h1 className="text-3xl font-bold mb-6 text-blue-600 fade-in">Haftalık Sevkiyat Planlama</h1>
+      // Verileri localStorage'a kaydet
+      useEffect(() => {
+        localStorage.setItem('shipments', JSON.stringify(shipments));
+      }, [shipments]);
 
-      {/* Sevkiyat Ekleme Formu */}
-      <div className="mb-8 bg-white p-6 rounded-lg shadow-md fade-in">
-        <h2 className="text-xl font-semibold mb-4">Yeni Sevkiyat Ekle</h2>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium">Ürün</label>
-              <input
-                type="text"
-                name="product"
-                value={form.product}
-                onChange={handleChange}
-                className="mt-1 p-2 w-full border rounded focus:ring focus:ring-blue-200"
-                placeholder="Ürün adı"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium">Miktar</label>
-              <input
-                type="number"
-                name="quantity"
-                value={form.quantity}
-                onChange={handleChange}
-                className="mt-1 p-2 w-full border rounded focus:ring focus:ring-blue-200"
-                placeholder="Miktar"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium">Hedef Lokasyon</label>
-              <input
-                type="text"
-                name="destination"
-                value={form.destination}
-                onChange={handleChange}
-                className="mt-1 p-2 w-full border rounded focus:ring focus:ring-blue-200"
-                placeholder="Lokasyon"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium">Tarih</label>
-              <input
-                type="date"
-                name="date"
-                value={form.date}
-                onChange={handleChange}
-                className="mt-1 p-2 w-full border rounded focus:ring focus:ring-blue-200"
-              />
+      // Form input değişikliklerini yönet
+      const handleChange = (e) => {
+        setForm({ ...form, [e.target.name]: e.target.value });
+      };
+
+      // Filtre input değişikliklerini yönet
+      const handleFilterChange = (e) => {
+        setFilter({ ...filter, [e.target.name]: e.target.value });
+      };
+
+      // Yeni sevkiyat ekle
+      const handleSubmit = (e) => {
+        e.preventDefault();
+        if (form.product && form.quantity && form.destination && form.date) {
+          setShipments([...shipments, { ...form, id: Date.now(), quantity: parseInt(form.quantity) }]);
+          setForm({ product: '', quantity: '', destination: '', date: '' });
+        }
+      };
+
+      // Sevkiyat sil
+      const handleDelete = (id) => {
+        setShipments(shipments.filter((shipment) => shipment.id !== id));
+      };
+
+      // Filtrelenmiş sevkiyatlar
+      const filteredShipments = shipments.filter((shipment) => {
+        return (
+          (!filter.date || shipment.date === filter.date) &&
+          (!filter.destination || shipment.destination.toLowerCase().includes(filter.destination.toLowerCase()))
+        );
+      });
+
+      // Rapor verileri
+      const totalQuantity = filteredShipments.reduce((sum, shipment) => sum + shipment.quantity, 0);
+      const destinationCounts = filteredShipments.reduce((acc, shipment) => {
+        acc[shipment.destination] = (acc[shipment.destination] || 0) + shipment.quantity;
+        return acc;
+      }, {});
+
+      // Chart.js grafiği oluştur
+      useEffect(() => {
+        if (chartRef.current) {
+          if (chartInstance.current) {
+            chartInstance.current.destroy();
+          }
+          chartInstance.current = new Chart(chartRef.current, {
+            type: 'bar',
+            data: {
+              labels: Object.keys(destinationCounts),
+              datasets: [{
+                label: 'Sevkiyat Miktarı',
+                data: Object.values(destinationCounts),
+                backgroundColor: 'rgba(59, 130, 246, 0.5)',
+                borderColor: 'rgba(59, 130, 246, 1)',
+                borderWidth: 1
+              }]
+            },
+            options: {
+              scales: {
+                y: { beginAtZero: true }
+              }
+            }
+          });
+        }
+        return () => {
+          if (chartInstance.current) {
+            chartInstance.current.destroy();
+          }
+        };
+      }, [destinationCounts]);
+
+      // PDF indirme
+      const downloadPDF = () => {
+        const doc = new jsPDF();
+        doc.setFontSize(16);
+        doc.text('Haftalık Sevkiyat Raporu', 20, 20);
+        doc.setFontSize(12);
+        doc.text(`Toplam Miktar: ${totalQuantity}`, 20, 30);
+        doc.text('Lokasyon Bazlı Dağılım:', 20, 40);
+        let y = 50;
+        Object.entries(destinationCounts).forEach(([dest, qty]) => {
+          doc.text(`${dest}: ${qty}`, 20, y);
+          y += 10;
+        });
+        doc.autoTable({
+          startY: y,
+          head: [['Ürün', 'Miktar', 'Hedef Lokasyon', 'Tarih']],
+          body: filteredShipments.map(s => [s.product, s.quantity, s.destination, s.date])
+        });
+        doc.save('sevkiyat_raporu.pdf');
+      };
+
+      return (
+        <div className="container mx-auto p-4">
+          <h1 className="text-3xl font-bold mb-6 text-blue-600 fade-in">Haftalık Sevkiyat Planlama</h1>
+
+          {/* Sevkiyat Ekleme Formu */}
+          <div className="mb-8 bg-white p-6 rounded-lg shadow-md fade-in">
+            <h2 className="text-xl font-semibold mb-4">Yeni Sevkiyat Ekle</h2>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium">Ürün</label>
+                  <input
+                    type="text"
+                    name="product"
+                    value={form.product}
+                    onChange={handleChange}
+                    className="mt-1 p-2 w-full border rounded focus:ring focus:ring-blue-200"
+                    placeholder="Ürün adı"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium">Miktar</label>
+                  <input
+                    type="number"
+                    name="quantity"
+                    value={form.quantity}
+                    onChange={handleChange}
+                    className="mt-1 p-2 w-full border rounded focus:ring focus:ring-blue-200"
+                    placeholder="Miktar"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium">Hedef Lokasyon</label>
+                  <input
+                    type="text"
+                    name="destination"
+                    value={form.destination}
+                    onChange={handleChange}
+                    className="mt-1 p-2 w-full border rounded focus:ring focus:ring-blue-200"
+                    placeholder="Lokasyon"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium">Tarih</label>
+                  <input
+                    type="date"
+                    name="date"
+                    value={form.date}
+                    onChange={handleChange}
+                    className="mt-1 p-2 w-full border rounded focus:ring focus:ring-blue-200"
+                  />
+                </div>
+              </div>
+              <button
+                type="submit"
+                className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition duration-200"
+              >
+                Ekle
+              </button>
+            </form>
+          </div>
+
+          {/* Filtreleme */}
+          <div className="mb-8 bg-white p-6 rounded-lg shadow-md fade-in">
+            <h2 className="text-xl font-semibold mb-4">Sevkiyatları Filtrele</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium">Tarih</label>
+                <input
+                  type="date"
+                  name="date"
+                  value={filter.date}
+                  onChange={handleFilterChange}
+                  className="mt-1 p-2 w-full border rounded focus:ring focus:ring-blue-200"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium">Hedef Lokasyon</label>
+                <input
+                  type="text"
+                  name="destination"
+                  value={filter.destination}
+                  onChange={handleFilterChange}
+                  className="mt-1 p-2 w-full border rounded focus:ring focus:ring-blue-200"
+                  placeholder="Lokasyon"
+                />
+              </div>
             </div>
           </div>
-          <button
-            type="submit"
-            className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition duration-200"
-          >
-            Ekle
-          </button>
-        </form>
-      </div>
 
-      {/* Filtreleme */}
-      <div className="mb-8 bg-white p-6 rounded-lg shadow-md fade-in">
-        <h2 className="text-xl font-semibold mb-4">Sevkiyatları Filtrele</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium">Tarih</label>
-            <input
-              type="date"
-              name="date"
-              value={filter.date}
-              onChange={handleFilterChange}
-              className="mt-1 p-2 w-full border rounded focus:ring focus:ring-blue-200"
-            />
+          {/* Raporlama */}
+          <div className="mb-8 bg-white p-6 rounded-lg shadow-md fade-in">
+            <h2 className="text-xl font-semibold mb-4">Haftalık Rapor</h2>
+            <p className="mb-2"><strong>Toplam Miktar:</strong> {totalQuantity}</p>
+            <p className="mb-2"><strong>Lokasyon Bazlı Dağılım:</strong></p>
+            <ul className="list-disc pl-6 mb-4">
+              {Object.entries(destinationCounts).map(([dest, qty]) => (
+                <li key={dest}>{dest}: {qty}</li>
+              ))}
+            </ul>
+            <canvas ref={chartRef} className="mb-4"></canvas>
+            <button
+              onClick={downloadPDF}
+              className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 transition duration-200"
+            >
+              Raporu PDF Olarak İndir
+            </button>
           </div>
-          <div>
-            <label className="block text-sm font-medium">Hedef Lokasyon</label>
-            <input
-              type="text"
-              name="destination"
-              value={filter.destination}
-              onChange={handleFilterChange}
-              className="mt-1 p-2 w-full border rounded focus:ring focus:ring-blue-200"
-              placeholder="Lokasyon"
-            />
+
+          {/* Sevkiyat Listesi */}
+          <div className="bg-white p-6 rounded-lg shadow-md fade-in">
+            <h2 className="text-xl font-semibold mb-4">Sevkiyat Listesi</h2>
+            {filteredShipments.length === 0 ? (
+              <p>Henüz sevkiyat eklenmedi veya filtreye uygun veri yok.</p>
+            ) : (
+              <table className="w-full border-collapse border">
+                <thead>
+                  <tr className="bg-gray-100">
+                    <th className="border p-2">Ürün</th>
+                    <th className="border p-2">Miktar</th>
+                    <th className="border p-2">Hedef Lokasyon</th>
+                    <th className="border p-2">Tarih</th>
+                    <th className="border p-2">İşlem</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredShipments.map((shipment) => (
+                    <tr key={shipment.id} className="hover:bg-gray-50">
+                      <td className="border p-2">{shipment.product}</td>
+                      <td className="border p-2">{shipment.quantity}</td>
+                      <td className="border p-2">{shipment.destination}</td>
+                      <td className="border p-2">{shipment.date}</td>
+                      <td className="border p-2">
+                        <button
+                          onClick={() => handleDelete(shipment.id)}
+                          className="bg-red-500 text-white px-2 py-1 rounded hover:bg-red-600 transition duration-200"
+                        >
+                          Sil
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
           </div>
         </div>
-      </div>
+      );
+    }
 
-      {/* Raporlama */}
-      <div className="mb-8 bg-white p-6 rounded-lg shadow-md fade-in">
-        <h2 className="text-xl font-semibold mb-4">Haftalık Rapor</h2>
-        <p className="mb-2"><strong>Toplam Miktar:</strong> {totalQuantity}</p>
-        <p className="mb-2"><strong>Lokasyon Bazlı Dağılım:</strong></p>
-        <ul className="list-disc pl-6 mb-4">
-          {Object.entries(destinationCounts).map(([dest, qty]) => (
-            <li key={dest}>{dest}: {qty}</li>
-          ))}
-        </ul>
-        <canvas ref={chartRef} className="mb-4"></canvas>
-        <button
-          onClick={downloadPDF}
-          className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 transition duration-200"
-        >
-          Raporu PDF Olarak İndir
-        </button>
-      </div>
-
-      {/* Sevkiyat Listesi */}
-      <div className="bg-white p-6 rounded-lg shadow-md fade-in">
-        <h2 className="text-xl font-semibold mb-4">Sevkiyat Listesi</h2>
-        {filteredShipments.length === 0 ? (
-          <p>Henüz sevkiyat eklenmedi veya filtreye uygun veri yok.</p>
-        ) : (
-          <table className="w-full border-collapse border">
-            <thead>
-              <tr className="bg-gray-100">
-                <th className="border p-2">Ürün</th>
-                <th className="border p-2">Miktar</th>
-                <th className="border p-2">Hedef Lokasyon</th>
-                <th className="border p-2">Tarih</th>
-                <th className="border p-2">İşlem</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredShipments.map((shipment) => (
-                <tr key={shipment.id} className="hover:bg-gray-50">
-                  <td className="border p-2">{shipment.product}</td>
-                  <td className="border p-2">{shipment.quantity}</td>
-                  <td className="border p-2">{shipment.destination}</td>
-                  <td className="border p-2">{shipment.date}</td>
-                  <td className="border p-2">
-                    <button
-                      onClick={() => handleDelete(shipment.id)}
-                      className="bg-red-500 text-white px-2 py-1 rounded hover:bg-red-600 transition duration-200"
-                    >
-                      Sil
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
-    </div>
-  );
-}
-
-export default App;
+    ReactDOM.render(<App />, document.getElementById('root'));
+  </script>
+</body>
+</html>
