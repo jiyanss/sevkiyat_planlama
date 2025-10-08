@@ -1,272 +1,232 @@
-import React, { useState, useEffect, useRef } from 'react';
-import Chart from 'chart.js/auto';
-import { jsPDF } from 'jspdf';
-import 'jspdf-autotable';
-import './App.css';
+import { useState, useEffect } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { CalendarDays } from "lucide-react";
 
-function App() {
-  const [shipments, setShipments] = useState([]);
-  const [form, setForm] = useState({
-    product: '',
-    quantity: '',
-    destination: '',
-    date: ''
-  });
-  const [filter, setFilter] = useState({ date: '', destination: '' });
-  const chartRef = useRef(null);
-  const chartInstance = useRef(null);
-
-  // localStorage'dan verileri yükle
-  useEffect(() => {
-    const savedShipments = JSON.parse(localStorage.getItem('shipments')) || [];
-    setShipments(savedShipments);
-  }, []);
-
-  // Verileri localStorage'a kaydet
-  useEffect(() => {
-    localStorage.setItem('shipments', JSON.stringify(shipments));
-  }, [shipments]);
-
-  // Form input değişikliklerini yönet
-  const handleChange = (e) => {
-    setForm({ ...form, [e.target.name]: e.target.value });
-  };
-
-  // Filtre input değişikliklerini yönet
-  const handleFilterChange = (e) => {
-    setFilter({ ...filter, [e.target.name]: e.target.value });
-  };
-
-  // Yeni sevkiyat ekle
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    if (form.product && form.quantity && form.destination && form.date) {
-      setShipments([...shipments, { ...form, id: Date.now(), quantity: parseInt(form.quantity) }]);
-      setForm({ product: '', quantity: '', destination: '', date: '' });
-    }
-  };
-
-  // Sevkiyat sil
-  const handleDelete = (id) => {
-    setShipments(shipments.filter((shipment) => shipment.id !== id));
-  };
-
-  // Filtrelenmiş sevkiyatlar
-  const filteredShipments = shipments.filter((shipment) => {
-    return (
-      (!filter.date || shipment.date === filter.date) &&
-      (!filter.destination || shipment.destination.toLowerCase().includes(filter.destination.toLowerCase()))
-    );
-  });
-
-  // Rapor verileri
-  const totalQuantity = filteredShipments.reduce((sum, shipment) => sum + shipment.quantity, 0);
-  const destinationCounts = filteredShipments.reduce((acc, shipment) => {
-    acc[shipment.destination] = (acc[shipment.destination] || 0) + shipment.quantity;
-    return acc;
-  }, {});
-
-  // Chart.js grafiği oluştur
-  useEffect(() => {
-    if (chartRef.current) {
-      if (chartInstance.current) {
-        chartInstance.current.destroy();
-      }
-      chartInstance.current = new Chart(chartRef.current, {
-        type: 'bar',
-        data: {
-          labels: Object.keys(destinationCounts),
-          datasets: [{
-            label: 'Sevkiyat Miktarı',
-            data: Object.values(destinationCounts),
-            backgroundColor: 'rgba(59, 130, 246, 0.5)',
-            borderColor: 'rgba(59, 130, 246, 1)',
-            borderWidth: 1
-          }]
-        },
-        options: {
-          scales: {
-            y: { beginAtZero: true }
-          }
-        }
-      });
-    }
-    return () => {
-      if (chartInstance.current) {
-        chartInstance.current.destroy();
-      }
-    };
-  }, [destinationCounts]);
-
-  // PDF indirme
-  const downloadPDF = () => {
-    const doc = new jsPDF();
-    doc.setFontSize(16);
-    doc.text('Haftalık Sevkiyat Raporu', 20, 20);
-    doc.setFontSize(12);
-    doc.text(`Toplam Miktar: ${totalQuantity}`, 20, 30);
-    doc.text('Lokasyon Bazlı Dağılım:', 20, 40);
-    let y = 50;
-    Object.entries(destinationCounts).forEach(([dest, qty]) => {
-      doc.text(`${dest}: ${qty}`, 20, y);
-      y += 10;
-    });
-    doc.autoTable({
-      startY: y,
-      head: [['Ürün', 'Miktar', 'Hedef Lokasyon', 'Tarih']],
-      body: filteredShipments.map(s => [s.product, s.quantity, s.destination, s.date])
-    });
-    doc.save('sevkiyat_raporu.pdf');
-  };
+export default function App() {
+  const [page, setPage] = useState("login");
+  // improvement: moved orders state to App
+  // so both OrderEntryPage and PlanningPage can use same data
+  const [orders, setOrders] = useState([]);
 
   return (
-    <div className="container mx-auto p-4">
-      <h1 className="text-3xl font-bold mb-6 text-blue-600 fade-in">Haftalık Sevkiyat Planlama</h1>
+    <div className="min-h-screen bg-gray-50 text-gray-900">
+      <header className="bg-blue-900 text-white py-4 px-8 flex justify-between items-center shadow-md">
+        <h1 className="text-xl font-bold">Yatsan Sevkiyat Sistemi</h1>
+        {page !== "login" && <Button onClick={() => setPage("login")}>Çıkış</Button>}
+      </header>
 
-      {/* Sevkiyat Ekleme Formu */}
-      <div className="mb-8 bg-white p-6 rounded-lg shadow-md fade-in">
-        <h2 className="text-xl font-semibold mb-4">Yeni Sevkiyat Ekle</h2>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium">Ürün</label>
-              <input
-                type="text"
-                name="product"
-                value={form.product}
-                onChange={handleChange}
-                className="mt-1 p-2 w-full border rounded focus:ring focus:ring-blue-200"
-                placeholder="Ürün adı"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium">Miktar</label>
-              <input
-                type="number"
-                name="quantity"
-                value={form.quantity}
-                onChange={handleChange}
-                className="mt-1 p-2 w-full border rounded focus:ring focus:ring-blue-200"
-                placeholder="Miktar"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium">Hedef Lokasyon</label>
-              <input
-                type="text"
-                name="destination"
-                value={form.destination}
-                onChange={handleChange}
-                className="mt-1 p-2 w-full border rounded focus:ring focus:ring-blue-200"
-                placeholder="Lokasyon"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium">Tarih</label>
-              <input
-                type="date"
-                name="date"
-                value={form.date}
-                onChange={handleChange}
-                className="mt-1 p-2 w-full border rounded focus:ring focus:ring-blue-200"
-              />
-            </div>
-          </div>
-          <button
-            type="submit"
-            className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition duration-200"
-          >
-            Ekle
-          </button>
-        </form>
-      </div>
-
-      {/* Filtreleme */}
-      <div className="mb-8 bg-white p-6 rounded-lg shadow-md fade-in">
-        <h2 className="text-xl font-semibold mb-4">Sevkiyatları Filtrele</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium">Tarih</label>
-            <input
-              type="date"
-              name="date"
-              value={filter.date}
-              onChange={handleFilterChange}
-              className="mt-1 p-2 w-full border rounded focus:ring focus:ring-blue-200"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium">Hedef Lokasyon</label>
-            <input
-              type="text"
-              name="destination"
-              value={filter.destination}
-              onChange={handleFilterChange}
-              className="mt-1 p-2 w-full border rounded focus:ring focus:ring-blue-200"
-              placeholder="Lokasyon"
-            />
-          </div>
-        </div>
-      </div>
-
-      {/* Raporlama */}
-      <div className="mb-8 bg-white p-6 rounded-lg shadow-md fade-in">
-        <h2 className="text-xl font-semibold mb-4">Haftalık Rapor</h2>
-        <p className="mb-2"><strong>Toplam Miktar:</strong> {totalQuantity}</p>
-        <p className="mb-2"><strong>Lokasyon Bazlı Dağılım:</strong></p>
-        <ul className="list-disc pl-6 mb-4">
-          {Object.entries(destinationCounts).map(([dest, qty]) => (
-            <li key={dest}>{dest}: {qty}</li>
-          ))}
-        </ul>
-        <canvas ref={chartRef} className="mb-4"></canvas>
-        <button
-          onClick={downloadPDF}
-          className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 transition duration-200"
-        >
-          Raporu PDF Olarak İndir
-        </button>
-      </div>
-
-      {/* Sevkiyat Listesi */}
-      <div className="bg-white p-6 rounded-lg shadow-md fade-in">
-        <h2 className="text-xl font-semibold mb-4">Sevkiyat Listesi</h2>
-        {filteredShipments.length === 0 ? (
-          <p>Henüz sevkiyat eklenmedi veya filtreye uygun veri yok.</p>
-        ) : (
-          <table className="w-full border-collapse border">
-            <thead>
-              <tr className="bg-gray-100">
-                <th className="border p-2">Ürün</th>
-                <th className="border p-2">Miktar</th>
-                <th className="border p-2">Hedef Lokasyon</th>
-                <th className="border p-2">Tarih</th>
-                <th className="border p-2">İşlem</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredShipments.map((shipment) => (
-                <tr key={shipment.id} className="hover:bg-gray-50">
-                  <td className="border p-2">{shipment.product}</td>
-                  <td className="border p-2">{shipment.quantity}</td>
-                  <td className="border p-2">{shipment.destination}</td>
-                  <td className="border p-2">{shipment.date}</td>
-                  <td className="border p-2">
-                    <button
-                      onClick={() => handleDelete(shipment.id)}
-                      className="bg-red-500 text-white px-2 py-1 rounded hover:bg-red-600 transition duration-200"
-                    >
-                      Sil
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
+      {page === "login" && <LoginPage onLogin={setPage} />}
+      {/* improvement: pass orders and setOrders as props */}
+      {page === "order" && <OrderEntryPage orders={orders} setOrders={setOrders} />}
+      {/* improvement: orders data can also go to planning page */}
+      {page === "planning" && <PlanningPage orders={orders} />}
     </div>
   );
 }
 
-export default App;
+function LoginPage({ onLogin }) {
+  const [role, setRole] = useState("magaza");
+  // fix: added state for input fields
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+
+  return (
+    <div className="flex justify-center items-center h-[80vh]">
+      <Card className="w-[350px] shadow-lg">
+        <CardHeader>
+          <CardTitle className="text-center text-blue-900">Giriş Yap</CardTitle>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-3">
+          {/* fix: inputs are now controlled components */}
+          <Input 
+            placeholder="Kullanıcı Adı" 
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+          />
+          <Input 
+            placeholder="Şifre" 
+            type="password" 
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+          />
+          <select
+            value={role}
+            onChange={(e) => setRole(e.target.value)}
+            className="border rounded p-2 text-sm"
+          >
+            <option value="magaza">Mağaza</option>
+            <option value="satis">Satış Destek</option>
+            <option value="sevkiyat">Sevkiyat Koordinasyon</option>
+          </select>
+          <Button
+            className="bg-blue-900"
+            onClick={() => onLogin(role === "magaza" ? "order" : "planning")}
+          >
+            Giriş
+          </Button>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+function OrderEntryPage({ orders, setOrders }) {
+  // improvement: orders state comes from props now
+  const [newOrder, setNewOrder] = useState({
+    musteri: "",
+    siparisNo: "",
+    urun: "",
+    miktar: "",
+    teslimTarihi: "",
+    aracTipi: "",
+  });
+
+  // improvement: keep fetch logic but in real app it will call API
+  useEffect(() => {
+    // if no data, use empty list first
+    // if orders already filled in App, fetch won't run
+    if (orders.length === 0) {
+      fetch("/data/orders.json")
+        .then((res) => res.json())
+        .then((data) => setOrders(data))
+        .catch(() => console.warn("Mock data not found, using empty list."));
+    }
+  }, []); // run only once on first render
+
+  const handleChange = (e) => {
+    setNewOrder({ ...newOrder, [e.target.name]: e.target.value });
+  };
+
+  const handleSave = () => {
+    if (!newOrder.musteri || !newOrder.siparisNo) return;
+    // improvement: use crypto.randomUUID() for unique ID
+    setOrders([...orders, { id: crypto.randomUUID(), ...newOrder }]);
+    setNewOrder({ musteri: "", siparisNo: "", urun: "", miktar: "", teslimTarihi: "", aracTipi: "" });
+  };
+
+  return (
+    <div className="p-8 space-y-8">
+      <Card className="shadow-md">
+        <CardHeader>
+          <CardTitle className="text-blue-900">Müşteri Sipariş Girişi</CardTitle>
+        </CardHeader>
+        <CardContent className="grid grid-cols-3 gap-4">
+          <Input name="musteri" value={newOrder.musteri} onChange={handleChange} placeholder="Müşteri Adı" />
+          <Input name="siparisNo" value={newOrder.siparisNo} onChange={handleChange} placeholder="Sipariş Numarası" />
+          <Input name="urun" value={newOrder.urun} onChange={handleChange} placeholder="Ürün / Kategori" />
+          <Input name="miktar" value={newOrder.miktar} onChange={handleChange} placeholder="Miktar (m³)" />
+          <Input name="teslimTarihi" value={newOrder.teslimTarihi} onChange={handleChange} type="date" placeholder="Teslim Tarihi" />
+          <select name="aracTipi" value={newOrder.aracTipi} onChange={handleChange} className="border rounded p-2 text-sm">
+            <option value="">Araç Tipi Seçin</option>
+            <option>Kamyonet</option>
+            <option>Tır</option>
+            <option>Panelvan</option>
+          </select>
+          <div className="col-span-3 flex justify-end">
+            <Button className="bg-blue-900" onClick={handleSave}>Kaydet</Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card className="shadow-md">
+        <CardHeader>
+          <CardTitle className="text-blue-900">Sipariş Listesi</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <table className="w-full text-sm border">
+            <thead className="bg-gray-100">
+              <tr>
+                <th className="border p-2">Müşteri</th>
+                <th className="border p-2">Sipariş No</th>
+                <th className="border p-2">Ürün</th>
+                <th className="border p-2">Miktar</th>
+                <th className="border p-2">Araç Tipi</th>
+                <th className="border p-2">Teslim Tarihi</th>
+              </tr>
+            </thead>
+            <tbody>
+              {orders.map((o) => (
+                <tr key={o.id}>
+                  <td className="border p-2">{o.musteri}</td>
+                  <td className="border p-2">{o.siparisNo}</td>
+                  <td className="border p-2">{o.urun}</td>
+                  <td className="border p-2">{o.miktar}</td>
+                  <td className="border p-2">{o.aracTipi}</td>
+                  <td className="border p-2">{o.teslimTarihi}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+function PlanningPage({ orders }) {
+  const [view, setView] = useState("haftalik");
+  const [plans, setPlans] = useState([]);
+
+  // improvement: keep fetch logic
+  useEffect(() => {
+    fetch("/data/planning.json")
+      .then((res) => res.json())
+      .then((data) => setPlans(data))
+      .catch(() => console.warn("Mock planning data not found."));
+  }, []);
+
+  // fix: added onClick for export to excel button
+  const handleExportToExcel = () => {
+    // in real app, here a library like 'xlsx' can be used to convert data to Excel
+    alert("Excel export not ready yet. Can use a library like xlsx to do it.");
+  };
+
+  return (
+    <div className="p-8">
+      <Card className="shadow-md">
+        <CardHeader className="flex justify-between items-center">
+          <CardTitle className="text-blue-900 flex items-center gap-2">
+            <CalendarDays className="w-5 h-5" /> Araç Planlama Takvimi
+          </CardTitle>
+          <div className="flex gap-2">
+            <Button variant={view === "gunluk" ? "default" : "outline"} onClick={() => setView("gunluk")}>Günlük</Button>
+            <Button variant={view === "haftalik" ? "default" : "outline"} onClick={() => setView("haftalik")}>Haftalık</Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <Tabs defaultValue="Pzt" className="w-full">
+            <TabsList className="grid grid-cols-7">
+              {['Pzt','Sal','Çar','Per','Cum','Cmt','Paz'].map((d) => (
+                <TabsTrigger key={d} value={d}>{d}</TabsTrigger>
+              ))}
+            </TabsList>
+            {plans.map((day) => (
+              <TabsContent key={day.gun} value={day.gun}>
+                <div className="grid grid-cols-3 gap-4 mt-4">
+                  {day.araclar.map((a) => (
+                    <Card key={a.id} className="border-blue-200">
+                      <CardHeader>
+                        <CardTitle className="text-sm text-blue-800">{a.tip} #{a.id}</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <p className="text-xs text-gray-600">Doluluk: %{a.doluluk}</p>
+                        <p className="text-xs text-gray-600">Sipariş Sayısı: {a.siparisSayisi}</p>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              </TabsContent>
+            ))}
+          </Tabs>
+          <div className="flex justify-end mt-6">
+            {/* fix: added onClick to the button */}
+            <Button className="bg-green-600" onClick={handleExportToExcel}>Excel’e Aktar</Button>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
